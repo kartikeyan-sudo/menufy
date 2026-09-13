@@ -30,6 +30,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { theme, toggleTheme } = useTheme();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+  React.useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          router.push('/login');
+        }
+      } catch {
+        // Fallback
+      }
+    };
+    checkAuth();
+  }, [router]);
+
   const handleLogout = async () => {
     try {
       const supabase = createClient();

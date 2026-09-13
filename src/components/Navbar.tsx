@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   QrCode,
   Sparkles,
@@ -14,17 +14,41 @@ import {
   Moon,
   Menu,
   X,
-  ExternalLink,
   ChevronRight,
+  LogIn,
+  UserPlus,
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
+import { createClient } from '@/lib/supabase/client';
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
   const isDark = theme === 'dark';
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsLoggedIn(!!session);
+      } catch {
+        setIsLoggedIn(false);
+      }
+    };
+    checkUser();
+  }, []);
+
+  const handleProtectedAction = (e: React.MouseEvent, targetHref: string) => {
+    if (!isLoggedIn && targetHref !== '/' && !targetHref.startsWith('/menu/')) {
+      e.preventDefault();
+      router.push('/login');
+    }
+  };
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -63,7 +87,8 @@ export function Navbar() {
               return (
                 <Link
                   key={link.href}
-                  href={link.href}
+                  href={isLoggedIn || link.href.startsWith('/menu/') ? link.href : '/login'}
+                  onClick={(e) => handleProtectedAction(e, link.href)}
                   className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
                     isActive
                       ? 'bg-orange-500/10 text-orange-600 border border-orange-500/20'
@@ -79,7 +104,7 @@ export function Navbar() {
             })}
           </nav>
 
-          {/* Right Actions (Theme Toggle + Sign In / Mobile Hamburger) */}
+          {/* Right Actions (Theme Toggle + Sign In / Register / Mobile Hamburger) */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Theme Toggle Button */}
             <button
@@ -94,12 +119,33 @@ export function Navbar() {
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
-            <Link
-              href="/onboarding"
-              className="hidden sm:flex items-center gap-1 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all"
-            >
-              Create Menu <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
+            {isLoggedIn ? (
+              <Link
+                href="/dashboard"
+                className="hidden sm:flex items-center gap-1 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all"
+              >
+                Dashboard <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            ) : (
+              <div className="hidden sm:flex items-center gap-2">
+                <Link
+                  href="/login"
+                  className={`px-3.5 py-2 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition-all ${
+                    isDark
+                      ? 'border-slate-800 bg-slate-900 text-slate-200 hover:bg-slate-800'
+                      : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <LogIn className="w-3.5 h-3.5 text-orange-500" /> Log In
+                </Link>
+                <Link
+                  href="/signup"
+                  className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all flex items-center gap-1.5"
+                >
+                  <UserPlus className="w-3.5 h-3.5" /> Register
+                </Link>
+              </div>
+            )}
 
             {/* Mobile Hamburger Button */}
             <button
@@ -154,8 +200,11 @@ export function Navbar() {
               return (
                 <Link
                   key={link.href}
-                  href={link.href}
-                  onClick={() => setIsMobileOpen(false)}
+                  href={isLoggedIn || link.href.startsWith('/menu/') ? link.href : '/login'}
+                  onClick={(e) => {
+                    setIsMobileOpen(false);
+                    handleProtectedAction(e, link.href);
+                  }}
                   className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all ${
                     isActive
                       ? 'bg-orange-500/10 text-orange-600 border border-orange-500/20'
@@ -173,13 +222,35 @@ export function Navbar() {
         </div>
 
         <div className="space-y-3 pt-6 border-t border-slate-200 dark:border-slate-800">
-          <Link
-            href="/onboarding"
-            onClick={() => setIsMobileOpen(false)}
-            className="w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-orange-500/20"
-          >
-            Create Your Menu <ChevronRight className="w-4 h-4" />
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              onClick={() => setIsMobileOpen(false)}
+              className="w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-orange-500/20"
+            >
+              Go to Dashboard <ChevronRight className="w-4 h-4" />
+            </Link>
+          ) : (
+            <div className="space-y-2">
+              <Link
+                href="/login"
+                onClick={() => setIsMobileOpen(false)}
+                className="w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-orange-500/20"
+              >
+                <LogIn className="w-4 h-4" /> Log In
+              </Link>
+              <Link
+                href="/signup"
+                onClick={() => setIsMobileOpen(false)}
+                className={`w-full py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-2 ${
+                  isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-300 bg-white text-slate-800'
+                }`}
+              >
+                <UserPlus className="w-4 h-4 text-orange-500" /> Register Account
+              </Link>
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
             <span>Theme Mode</span>
             <button
