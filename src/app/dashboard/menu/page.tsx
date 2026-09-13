@@ -14,6 +14,7 @@ import {
   FolderPlus,
   RefreshCw,
   Loader2,
+  Code,
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -59,6 +60,11 @@ export default function ManualMenuManagementPage() {
 
   // Category Form Field
   const [newCatName, setNewCatName] = useState('');
+
+  // JSON Import States
+  const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
+  const [jsonInput, setJsonInput] = useState('');
+  const [importingJson, setImportingJson] = useState(false);
 
   // Load menu data from API
   const fetchMenu = useCallback(async () => {
@@ -271,6 +277,53 @@ export default function ManualMenuManagementPage() {
     }
   };
 
+  const handleImportJson = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!jsonInput.trim()) return;
+    setImportingJson(true);
+
+    try {
+      let parsedData;
+      try {
+        parsedData = JSON.parse(jsonInput);
+      } catch (err) {
+        alert('Invalid JSON format. Please check your query.');
+        setImportingJson(false);
+        return;
+      }
+
+      if (!parsedData.categories || !Array.isArray(parsedData.categories)) {
+        alert('JSON must contain a "categories" array.');
+        setImportingJson(false);
+        return;
+      }
+
+      const res = await fetch('/api/menu/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurant_id: DEFAULT_RESTAURANT_ID,
+          data: parsedData,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message || 'Menu imported successfully!');
+        setJsonInput('');
+        setIsJsonModalOpen(false);
+        await fetchMenu();
+      } else {
+        alert(data.error || 'Failed to import menu');
+      }
+    } catch (err) {
+      console.error('Import JSON error:', err);
+      alert('Failed to import JSON. Please try again.');
+    } finally {
+      setImportingJson(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <main className="p-6 md:p-10 max-w-6xl">
@@ -290,6 +343,14 @@ export default function ManualMenuManagementPage() {
               }`}
             >
               <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+            <button
+              onClick={() => setIsJsonModalOpen(true)}
+              className={`h-10 px-3 rounded-xl border font-semibold text-xs flex items-center gap-1.5 ${
+                isDark ? 'border-slate-800 bg-slate-900 text-slate-200 hover:bg-slate-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Code className="w-4 h-4" /> Import JSON
             </button>
             <button
               onClick={() => setIsCatModalOpen(true)}
@@ -534,6 +595,67 @@ export default function ManualMenuManagementPage() {
                   {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</> : 'Create Category'}
                 </button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* JSON Import Modal */}
+        {isJsonModalOpen && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className={`w-full max-w-2xl p-6 rounded-3xl border shadow-2xl space-y-4 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+              <div className={`flex items-center justify-between border-b pb-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                <h3 className="font-bold text-lg">Import Menu via JSON</h3>
+                <button onClick={() => setIsJsonModalOpen(false)} className="text-slate-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-6">
+                <form onSubmit={handleImportJson} className="flex-1 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold mb-2">JSON Query</label>
+                    <textarea
+                      value={jsonInput}
+                      onChange={(e) => setJsonInput(e.target.value)}
+                      placeholder="Paste your JSON here..."
+                      className={`w-full p-4 rounded-xl border h-64 font-mono text-xs focus:outline-none focus:border-orange-500 ${isDark ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-300 text-slate-700'}`}
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={importingJson}
+                    className="w-full h-11 rounded-xl bg-orange-500 hover:bg-orange-600 font-bold text-white text-xs shadow-md shadow-orange-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {importingJson ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing...</> : 'Import Menu'}
+                  </button>
+                </form>
+
+                <div className={`flex-1 p-4 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                  <h4 className="text-xs font-bold text-orange-500 mb-2 uppercase tracking-wider">Example Format</h4>
+                  <pre className={`text-[10px] sm:text-xs overflow-x-auto p-3 rounded-lg font-mono ${isDark ? 'bg-slate-900 text-slate-400' : 'bg-white text-slate-600 border'}`}>
+{`{
+  "categories": [
+    {
+      "name": "Pizzas",
+      "items": [
+        {
+          "name": "Margherita Pizza",
+          "price": 199,
+          "description": "Fresh tomato sauce & mozzarella",
+          "image_url": "https://example.com/pizza.jpg",
+          "is_available": true
+        }
+      ]
+    }
+  ]
+}`}
+                  </pre>
+                  <p className={`mt-4 text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Provide an object with a <code className="font-bold">categories</code> array. Each category must have a <code className="font-bold">name</code> and an <code className="font-bold">items</code> array.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}
