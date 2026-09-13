@@ -97,6 +97,8 @@ const DEMO_MENU = {
 export default function CustomerMenuPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params);
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
+  const [restName, setRestName] = useState<string>(DEMO_MENU.restaurantName);
+  const [restDesc, setRestDesc] = useState<string>(DEMO_MENU.description);
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -106,6 +108,19 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [orderSuccess, setOrderSuccess] = useState<any>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('menufy_restaurant_info');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.name) setRestName(parsed.name);
+          if (parsed.description) setRestDesc(parsed.description);
+        } catch {}
+      }
+    }
+  }, []);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -222,14 +237,14 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
             <div>
               <div className="flex items-center gap-2">
                 <h1 className={`text-lg font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {DEMO_MENU.restaurantName}
+                  {restName}
                 </h1>
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 rounded-full">
                   <Clock className="w-3 h-3" /> Open
                 </span>
               </div>
               <p className={`text-xs mt-0.5 line-clamp-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {DEMO_MENU.description}
+                {restDesc}
               </p>
             </div>
           </div>

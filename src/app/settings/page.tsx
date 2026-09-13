@@ -35,8 +35,34 @@ export default function SettingsPage() {
   const [deepLinkUrl, setDeepLinkUrl] = useState('');
   const [testSending, setTestSending] = useState(false);
 
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('menufy_restaurant_info');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.name) setRestaurantName(parsed.name);
+          if (parsed.slug) setSlug(parsed.slug);
+          if (parsed.description) setDescription(parsed.description);
+          if (parsed.address) setAddress(parsed.address);
+          if (parsed.phone) setPhone(parsed.phone);
+        } catch {}
+      }
+    }
+  }, []);
+
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    const updatedData = {
+      name: restaurantName,
+      slug: slug.trim().toLowerCase(),
+      description,
+      address,
+      phone,
+    };
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('menufy_restaurant_info', JSON.stringify(updatedData));
+    }
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
   };

@@ -29,6 +29,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [restaurantName, setRestaurantName] = useState('Sharma Cafe');
+  const [restaurantSlug, setRestaurantSlug] = useState('sharma-cafe');
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('menufy_restaurant_info');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.name) setRestaurantName(parsed.name);
+          if (parsed.slug) setRestaurantSlug(parsed.slug);
+        } catch {}
+      }
+    }
+  }, []);
 
   React.useEffect(() => {
     const checkAuth = async () => {
@@ -125,7 +140,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               <div>
                 <h1 className="font-bold text-base tracking-tight">Menufy</h1>
-                <p className="text-[10px] text-orange-500 font-mono">Sharma Cafe Dashboard</p>
+                <p className="text-[10px] text-orange-500 font-mono truncate max-w-[120px]">{restaurantName} Dashboard</p>
               </div>
             </Link>
             <button
@@ -167,7 +182,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
         <div className="pt-6 border-t border-slate-800/80 space-y-3">
           <Link
-            href="/menu/sharma-cafe"
+            href={`/menu/${restaurantSlug}`}
             target="_blank"
             className="flex items-center justify-between text-xs font-semibold text-orange-500 hover:text-orange-400 p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20"
           >
