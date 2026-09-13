@@ -68,7 +68,7 @@ export async function POST(req: Request) {
         const newStatus = isAccept ? 'accepted' : 'rejected';
         const statusLabel = isAccept ? '✅ ORDER ACCEPTED BY STAFF' : '❌ ORDER REJECTED BY STAFF';
 
-        // Update database order status using native Postgres queryDb
+        // Update database order status using native Postgres queryDb and internal PATCH
         try {
           await queryDb(
             'UPDATE public.orders SET status = $1, updated_at = NOW() WHERE id = $2 OR id LIKE $3',
@@ -78,6 +78,13 @@ export async function POST(req: Request) {
           if (newStatus === 'rejected') {
             await queryDb(`DELETE FROM public.orders WHERE id = $1 OR status IN ('completed', 'rejected')`, [orderId]).catch(() => {});
           }
+
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          await fetch(`${appUrl}/api/orders`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: orderId, status: newStatus }),
+          }).catch(() => {});
         } catch (dbErr) {
           console.warn('Postgres Telegram order status update skipped:', dbErr);
         }
