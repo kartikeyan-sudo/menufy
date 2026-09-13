@@ -35,16 +35,45 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [restaurantSlug, setRestaurantSlug] = useState('sharma-cafe');
 
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('menufy_restaurant_info');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed.name) setRestaurantName(parsed.name);
-          if (parsed.slug) setRestaurantSlug(parsed.slug);
-        } catch {}
+    const fetchRestaurantInfo = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { data, error } = await supabase
+            .from('restaurants')
+            .select('name, slug')
+            .eq('owner_id', user.id)
+            .single();
+            
+          if (data) {
+            setRestaurantName(data.name);
+            setRestaurantSlug(data.slug);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('menufy_restaurant_info', JSON.stringify({ name: data.name, slug: data.slug }));
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch restaurant info:', err);
       }
-    }
+      
+      // Fallback to local storage if API fails
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('menufy_restaurant_info');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.name) setRestaurantName(parsed.name);
+            if (parsed.slug) setRestaurantSlug(parsed.slug);
+          } catch {}
+        }
+      }
+    };
+    
+    fetchRestaurantInfo();
   }, []);
 
   React.useEffect(() => {

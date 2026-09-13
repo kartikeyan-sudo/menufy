@@ -16,6 +16,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
+import { createClient } from '@/lib/supabase/client';
 
 export default function SettingsPage() {
   const { theme } = useTheme();
@@ -36,27 +37,61 @@ export default function SettingsPage() {
   const [testSending, setTestSending] = useState(false);
 
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('menufy_restaurant_info');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed.name) setRestaurantName(parsed.name);
-          if (parsed.slug) setSlug(parsed.slug);
-          if (parsed.description) setDescription(parsed.description);
-          if (parsed.address) setAddress(parsed.address);
-          if (parsed.phone) setPhone(parsed.phone);
-        } catch {}
+    const fetchSettings = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data, error } = await supabase
+            .from('restaurants')
+            .select('*')
+            .eq('owner_id', user.id)
+            .single();
+            
+          if (data) {
+            setRestaurantName(data.name || '');
+            setSlug(data.slug || '');
+            setDescription(data.description || '');
+            setAddress(data.address || '');
+            setPhone(data.phone || '');
+            
+            if (typeof window !== 'undefined') {
+              const savedTelegramStatus = localStorage.getItem('menufy_telegram_connected');
+              if (savedTelegramStatus !== null) {
+                setIsConnected(savedTelegramStatus === 'true');
+              }
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch settings from DB:', err);
       }
 
-      const savedTelegramStatus = localStorage.getItem('menufy_telegram_connected');
-      if (savedTelegramStatus !== null) {
-        setIsConnected(savedTelegramStatus === 'true');
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('menufy_restaurant_info');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.name) setRestaurantName(parsed.name);
+            if (parsed.slug) setSlug(parsed.slug);
+            if (parsed.description) setDescription(parsed.description);
+            if (parsed.address) setAddress(parsed.address);
+            if (parsed.phone) setPhone(parsed.phone);
+          } catch {}
+        }
+
+        const savedTelegramStatus = localStorage.getItem('menufy_telegram_connected');
+        if (savedTelegramStatus !== null) {
+          setIsConnected(savedTelegramStatus === 'true');
+        }
       }
-    }
+    };
+
+    fetchSettings();
   }, []);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     const updatedData = {
       name: restaurantName,
@@ -65,6 +100,20 @@ export default function SettingsPage() {
       address,
       phone,
     };
+    
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('restaurants')
+          .update(updatedData)
+          .eq('owner_id', user.id);
+      }
+    } catch (err) {
+      console.error('Failed to update restaurant in DB:', err);
+    }
+    
     if (typeof window !== 'undefined') {
       localStorage.setItem('menufy_restaurant_info', JSON.stringify(updatedData));
     }
