@@ -16,7 +16,9 @@ import {
   ExternalLink,
   Sun,
   Moon,
+  Download,
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -188,6 +190,38 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           >
             Preview Live Menu <ExternalLink className="w-3.5 h-3.5" />
           </Link>
+
+          {/* Download QR Button */}
+          <button
+            onClick={async () => {
+              try {
+                const origin = typeof window !== 'undefined' ? window.location.origin : 'https://menufy-beryl.vercel.app';
+                const menuUrl = `${origin}/menu/${restaurantSlug}`;
+                
+                const qrDataUrl = await QRCode.toDataURL(menuUrl, {
+                  width: 800,
+                  margin: 2,
+                  color: {
+                    dark: '#f97316', // tailwind orange-500
+                    light: '#ffffff'
+                  }
+                });
+                
+                const link = document.createElement('a');
+                link.href = qrDataUrl;
+                link.download = `${restaurantSlug}-menu-qr.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              } catch (err) {
+                console.error("Failed to generate QR code:", err);
+                alert("Failed to generate QR code. Please try again.");
+              }
+            }}
+            className="w-full flex items-center justify-between text-xs font-semibold text-emerald-500 hover:text-emerald-400 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 transition-colors"
+          >
+            Download Menu QR <Download className="w-3.5 h-3.5" />
+          </button>
 
           {/* Visible Logout Button (Fix #2) */}
           <button
