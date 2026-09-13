@@ -1,29 +1,20 @@
-import { Pool } from 'pg';
+import { createClient } from '@supabase/supabase-js';
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  'postgresql://postgres:1234%40Qwer%40Asdf%40Zxcv%40@db.rgsomwpnnhqkyybdivnx.supabase.co:5432/postgres';
+// Supabase admin client for server-side API routes
+// Uses service_role key to bypass RLS (for API routes that handle their own auth)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-export const pool = new Pool({
-  connectionString,
-  ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
 });
 
-export async function queryDb(text: string, params?: any[]) {
-  try {
-    const client = await pool.connect();
-    try {
-      const res = await client.query(text, params);
-      return res;
-    } finally {
-      client.release();
-    }
-  } catch (err: any) {
-    console.warn('Postgres DB Warning (Proceeding with fallback mode):', err.message || err);
-    // Return empty fallback rows structure on network/DNS error to prevent 500 server crashes
-    return { rows: [], command: 'FALLBACK', rowCount: 0 };
-  }
-}
+// CORS headers for all API responses
+export const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+};

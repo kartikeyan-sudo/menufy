@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import {
   Plus,
@@ -12,6 +12,8 @@ import {
   Eye,
   EyeOff,
   FolderPlus,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -30,59 +32,27 @@ interface Category {
   name: string;
 }
 
-const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'cat-1', name: 'Pizzas' },
-  { id: 'cat-2', name: 'Beverages' },
-  { id: 'cat-3', name: 'Sides & Desserts' },
-];
-
-const DEFAULT_ITEMS: MenuItem[] = [
-  {
-    id: 'item-1',
-    category_id: 'cat-1',
-    name: 'Margherita Pizza',
-    description: 'Fresh mozzarella, San Marzano tomatoes, and organic basil.',
-    price: 199,
-    image_url: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=600&q=80',
-    is_available: true,
-  },
-  {
-    id: 'item-2',
-    category_id: 'cat-1',
-    name: 'Farmhouse Pizza',
-    description: 'Crisp capsicum, red onion, button mushroom & sweet corn.',
-    price: 249,
-    image_url: 'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?auto=format&fit=crop&w=600&q=80',
-    is_available: true,
-  },
-  {
-    id: 'item-3',
-    category_id: 'cat-2',
-    name: 'Classic Cold Coffee',
-    description: 'Dark espresso whipped with cold milk and vanilla ice cream.',
-    price: 120,
-    image_url: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=600&q=80',
-    is_available: true,
-  },
-];
+const DEFAULT_RESTAURANT_ID = '11111111-1111-1111-1111-111111111111';
 
 export default function ManualMenuManagementPage() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
-  const [items, setItems] = useState<MenuItem[]>(DEFAULT_ITEMS);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Form Modal States
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Form Fields
   const [itemName, setItemName] = useState('');
   const [itemDescription, setItemDescription] = useState('');
   const [itemPrice, setItemPrice] = useState<number | ''>('');
-  const [itemCategoryId, setItemCategoryId] = useState('cat-1');
+  const [itemCategoryId, setItemCategoryId] = useState('');
   const [itemImageUrl, setItemImageUrl] = useState('');
   const [itemAvailable, setItemAvailable] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -90,39 +60,42 @@ export default function ManualMenuManagementPage() {
   // Category Form Field
   const [newCatName, setNewCatName] = useState('');
 
-  // Load custom menu data from local storage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedCats = localStorage.getItem('menufy_custom_categories');
-      const savedItems = localStorage.getItem('menufy_custom_items');
-
-      if (savedCats) {
-        try {
-          setCategories(JSON.parse(savedCats));
-        } catch {}
+  // Load menu data from API
+  const fetchMenu = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/menu?restaurant_id=${DEFAULT_RESTAURANT_ID}`);
+      const data = await res.json();
+      if (data.success) {
+        setCategories(data.categories || []);
+        setItems(
+          (data.items || []).map((i: any) => ({
+            id: i.id,
+            category_id: i.category_id,
+            name: i.name,
+            description: i.description || '',
+            price: Number(i.price),
+            image_url: i.image_url || '',
+            is_available: i.is_available !== false,
+          }))
+        );
       }
-      if (savedItems) {
-        try {
-          setItems(JSON.parse(savedItems));
-        } catch {}
-      }
+    } catch (err) {
+      console.error('Failed to fetch menu:', err);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  // Helper to persist categories and items
-  const persistMenu = (updatedCats: Category[], updatedItems: MenuItem[]) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('menufy_custom_categories', JSON.stringify(updatedCats));
-      localStorage.setItem('menufy_custom_items', JSON.stringify(updatedItems));
-    }
-  };
+  useEffect(() => {
+    fetchMenu();
+  }, [fetchMenu]);
 
   const openAddItemModal = () => {
     setEditingItem(null);
     setItemName('');
     setItemDescription('');
     setItemPrice('');
-    setItemCategoryId(categories[0]?.id || 'cat-1');
+    setItemCategoryId(categories[0]?.id || '');
     setItemImageUrl('');
     setItemAvailable(true);
     setIsItemModalOpen(true);
@@ -152,80 +125,149 @@ export default function ManualMenuManagementPage() {
     }
   };
 
-  const handleSaveItem = (e: React.FormEvent) => {
+  const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!itemName.trim() || itemPrice === '') return;
+    if (!itemName.trim() || itemPrice === '' || !itemCategoryId) return;
+    setSaving(true);
 
-    let updatedItems: MenuItem[] = [];
-
-    if (editingItem) {
-      updatedItems = items.map((i) =>
-        i.id === editingItem.id
-          ? {
-              ...i,
-              name: itemName,
-              description: itemDescription,
-              price: Number(itemPrice),
-              category_id: itemCategoryId,
-              image_url: itemImageUrl || i.image_url,
-              is_available: itemAvailable,
-            }
-          : i
-      );
-    } else {
-      const newItem: MenuItem = {
-        id: `item-${Date.now()}`,
-        category_id: itemCategoryId,
-        name: itemName,
-        description: itemDescription,
-        price: Number(itemPrice),
-        image_url:
-          itemImageUrl ||
-          'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
-        is_available: itemAvailable,
-      };
-      updatedItems = [...items, newItem];
+    try {
+      if (editingItem) {
+        // PATCH existing item
+        const res = await fetch('/api/menu', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'item',
+            id: editingItem.id,
+            name: itemName,
+            description: itemDescription,
+            price: Number(itemPrice),
+            category_id: itemCategoryId,
+            image_url: itemImageUrl || editingItem.image_url,
+            is_available: itemAvailable,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          await fetchMenu();
+        } else {
+          alert(data.error || 'Failed to update item');
+        }
+      } else {
+        // POST new item
+        const res = await fetch('/api/menu', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'item',
+            restaurant_id: DEFAULT_RESTAURANT_ID,
+            category_id: itemCategoryId,
+            name: itemName,
+            description: itemDescription,
+            price: Number(itemPrice),
+            image_url:
+              itemImageUrl ||
+              'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
+            is_available: itemAvailable,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          await fetchMenu();
+        } else {
+          alert(data.error || 'Failed to add item');
+        }
+      }
+    } catch (err) {
+      console.error('Save item error:', err);
+      alert('Failed to save item. Please try again.');
+    } finally {
+      setSaving(false);
+      setIsItemModalOpen(false);
     }
-
-    setItems(updatedItems);
-    persistMenu(categories, updatedItems);
-    setIsItemModalOpen(false);
   };
 
-  const handleDeleteItem = (id: string) => {
-    if (confirm('Delete this menu item?')) {
-      const updatedItems = items.filter((i) => i.id !== id);
-      setItems(updatedItems);
-      persistMenu(categories, updatedItems);
+  const handleDeleteItem = async (id: string) => {
+    if (!confirm('Delete this menu item?')) return;
+    try {
+      const res = await fetch(`/api/menu?type=item&id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        await fetchMenu();
+      } else {
+        alert(data.error || 'Failed to delete item');
+      }
+    } catch (err) {
+      console.error('Delete item error:', err);
     }
   };
 
-  const toggleAvailability = (id: string) => {
-    const updatedItems = items.map((i) =>
-      i.id === id ? { ...i, is_available: !i.is_available } : i
-    );
-    setItems(updatedItems);
-    persistMenu(categories, updatedItems);
+  const toggleAvailability = async (id: string) => {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+
+    // Optimistic UI update
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, is_available: !i.is_available } : i)));
+
+    try {
+      await fetch('/api/menu', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'item',
+          id,
+          is_available: !item.is_available,
+        }),
+      });
+    } catch (err) {
+      // Revert on error
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, is_available: item.is_available } : i)));
+      console.error('Toggle availability error:', err);
+    }
   };
 
-  const handleAddCategory = (e: React.FormEvent) => {
+  const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
-    const newCat: Category = { id: `cat-${Date.now()}`, name: newCatName.trim() };
-    const updatedCats = [...categories, newCat];
-    setCategories(updatedCats);
-    persistMenu(updatedCats, items);
-    setNewCatName('');
-    setIsCatModalOpen(false);
+    setSaving(true);
+
+    try {
+      const res = await fetch('/api/menu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'category',
+          restaurant_id: DEFAULT_RESTAURANT_ID,
+          name: newCatName.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchMenu();
+      } else {
+        alert(data.error || 'Failed to add category');
+      }
+    } catch (err) {
+      console.error('Add category error:', err);
+    } finally {
+      setSaving(false);
+      setNewCatName('');
+      setIsCatModalOpen(false);
+    }
   };
 
-  const handleDeleteCategory = (catId: string) => {
-    if (confirm('Delete this category and all its items?')) {
-      const updatedCats = categories.filter((c) => c.id !== catId);
-      const updatedItems = items.filter((i) => i.category_id !== catId);
-      setCategories(updatedCats);
-      setItems(updatedItems);
-      persistMenu(updatedCats, updatedItems);
+  const handleDeleteCategory = async (catId: string) => {
+    if (!confirm('Delete this category and all its items?')) return;
+    try {
+      const res = await fetch(`/api/menu?type=category&id=${catId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        await fetchMenu();
+      } else {
+        alert(data.error || 'Failed to delete category');
+      }
+    } catch (err) {
+      console.error('Delete category error:', err);
     }
   };
 
@@ -236,11 +278,19 @@ export default function ManualMenuManagementPage() {
           <div>
             <h1 className="text-2xl font-bold">Manual Menu Management</h1>
             <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Add, edit, or remove menu items and categories directly without AI. Live customer menu updates instantly.
+              Add, edit, or remove menu items and categories. Changes sync to your live customer menu instantly.
             </p>
           </div>
 
           <div className="flex gap-3">
+            <button
+              onClick={() => fetchMenu()}
+              className={`h-10 px-3 rounded-xl border font-semibold text-xs flex items-center gap-1.5 ${
+                isDark ? 'border-slate-800 bg-slate-900 text-slate-200 hover:bg-slate-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
             <button
               onClick={() => setIsCatModalOpen(true)}
               className={`h-10 px-4 rounded-xl border font-semibold text-xs flex items-center gap-1.5 ${
@@ -258,88 +308,110 @@ export default function ManualMenuManagementPage() {
           </div>
         </div>
 
-        {/* Categories & Items List */}
-        <div className="space-y-8">
-          {categories.map((cat) => {
-            const catItems = items.filter((i) => i.category_id === cat.id);
-            return (
-              <section key={cat.id} className={`p-6 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-                <div className="flex items-center justify-between border-b pb-4 mb-4 border-slate-800">
-                  <h2 className="text-lg font-bold text-orange-500 uppercase tracking-wider">{cat.name} ({catItems.length})</h2>
-                  <button
-                    onClick={() => handleDeleteCategory(cat.id)}
-                    className="text-slate-500 hover:text-red-400 text-xs flex items-center gap-1"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Delete Category
-                  </button>
-                </div>
+        {/* Loading State */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+            <span className="ml-3 text-sm text-slate-500">Loading menu...</span>
+          </div>
+        ) : categories.length === 0 ? (
+          <div className={`text-center py-16 border rounded-2xl ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'}`}>
+            <FolderPlus className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
+            <p className={`text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>No categories yet</p>
+            <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Create your first category to start adding menu items.</p>
+            <button
+              onClick={() => setIsCatModalOpen(true)}
+              className="mt-4 px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs"
+            >
+              + Add First Category
+            </button>
+          </div>
+        ) : (
+          /* Categories & Items List */
+          <div className="space-y-8">
+            {categories.map((cat) => {
+              const catItems = items.filter((i) => i.category_id === cat.id);
+              return (
+                <section key={cat.id} className={`p-6 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                  <div className={`flex items-center justify-between border-b pb-4 mb-4 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                    <h2 className="text-lg font-bold text-orange-500 uppercase tracking-wider">{cat.name} ({catItems.length})</h2>
+                    <button
+                      onClick={() => handleDeleteCategory(cat.id)}
+                      className="text-slate-500 hover:text-red-400 text-xs flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete Category
+                    </button>
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {catItems.length === 0 ? (
-                    <div className="col-span-full py-4 text-center text-xs text-slate-500">No items in this category. Click "Add Item" to add one.</div>
-                  ) : (
-                    catItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`p-4 rounded-xl border flex items-start gap-4 ${
-                          isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-                        }`}
-                      >
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="w-16 h-16 rounded-lg object-cover border border-slate-700/50"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <h3 className={`font-bold text-sm truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.name}</h3>
-                            <span className="font-extrabold text-orange-600 dark:text-orange-500 text-sm">₹{item.price}</span>
-                          </div>
-                          <p className={`text-xs line-clamp-1 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{item.description}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {catItems.length === 0 ? (
+                      <div className="col-span-full py-4 text-center text-xs text-slate-500">No items in this category. Click "Add Item" to add one.</div>
+                    ) : (
+                      catItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`p-4 rounded-xl border flex items-start gap-4 ${
+                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                          }`}
+                        >
+                          {item.image_url && (
+                            <img
+                              src={item.image_url}
+                              alt={item.name}
+                              className="w-16 h-16 rounded-lg object-cover border border-slate-700/50"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <h3 className={`font-bold text-sm truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.name}</h3>
+                              <span className="font-extrabold text-orange-500 text-sm">₹{item.price}</span>
+                            </div>
+                            <p className={`text-xs line-clamp-1 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{item.description}</p>
 
-                          <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-slate-800">
-                            <button
-                              onClick={() => toggleAvailability(item.id)}
-                              className={`text-xs font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
-                                item.is_available
-                                  ? 'bg-emerald-500/20 text-emerald-400'
-                                  : 'bg-red-500/20 text-red-400'
-                              }`}
-                            >
-                              {item.is_available ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                              {item.is_available ? 'Available' : 'Unavailable'}
-                            </button>
-
-                            <div className="flex items-center gap-2">
+                            <div className={`flex items-center justify-between gap-2 mt-3 pt-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                               <button
-                                onClick={() => openEditItemModal(item)}
-                                className="text-slate-400 hover:text-white p-1"
+                                onClick={() => toggleAvailability(item.id)}
+                                className={`text-xs font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                                  item.is_available
+                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    : 'bg-red-500/20 text-red-400'
+                                }`}
                               >
-                                <Edit3 className="w-4 h-4" />
+                                {item.is_available ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                                {item.is_available ? 'Available' : 'Unavailable'}
                               </button>
-                              <button
-                                onClick={() => handleDeleteItem(item.id)}
-                                className="text-slate-500 hover:text-red-400 p-1"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => openEditItemModal(item)}
+                                  className={`p-1 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  className="text-slate-500 hover:text-red-400 p-1"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
 
         {/* Add/Edit Item Modal */}
         {isItemModalOpen && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className={`w-full max-w-lg p-6 rounded-3xl border shadow-2xl space-y-4 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
-              <div className="flex items-center justify-between border-b pb-3 border-slate-800">
+              <div className={`flex items-center justify-between border-b pb-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                 <h3 className="font-bold text-lg">{editingItem ? 'Edit Menu Item' : 'Add New Item'}</h3>
                 <button onClick={() => setIsItemModalOpen(false)} className="text-slate-400 hover:text-white">
                   <X className="w-5 h-5" />
@@ -424,9 +496,10 @@ export default function ManualMenuManagementPage() {
 
                 <button
                   type="submit"
-                  className="w-full h-12 rounded-xl bg-orange-500 hover:bg-orange-600 font-bold text-white shadow-md shadow-orange-500/20"
+                  disabled={saving}
+                  className="w-full h-12 rounded-xl bg-orange-500 hover:bg-orange-600 font-bold text-white shadow-md shadow-orange-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Save Menu Item
+                  {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : 'Save Menu Item'}
                 </button>
               </form>
             </div>
@@ -437,7 +510,7 @@ export default function ManualMenuManagementPage() {
         {isCatModalOpen && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className={`w-full max-w-sm p-6 rounded-3xl border shadow-2xl space-y-4 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
-              <div className="flex items-center justify-between border-b pb-3 border-slate-800">
+              <div className={`flex items-center justify-between border-b pb-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                 <h3 className="font-bold text-base">Add New Category</h3>
                 <button onClick={() => setIsCatModalOpen(false)} className="text-slate-400 hover:text-white">
                   <X className="w-5 h-5" />
@@ -455,9 +528,10 @@ export default function ManualMenuManagementPage() {
                 />
                 <button
                   type="submit"
-                  className="w-full h-11 rounded-xl bg-orange-500 hover:bg-orange-600 font-bold text-white text-xs shadow-md shadow-orange-500/20"
+                  disabled={saving}
+                  className="w-full h-11 rounded-xl bg-orange-500 hover:bg-orange-600 font-bold text-white text-xs shadow-md shadow-orange-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Create Category
+                  {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</> : 'Create Category'}
                 </button>
               </form>
             </div>

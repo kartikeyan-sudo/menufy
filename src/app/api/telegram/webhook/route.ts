@@ -1,27 +1,34 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin, corsHeaders } from '@/lib/db';
 import { sendTelegramMessage, answerCallbackQuery, editTelegramMessageText } from '@/lib/telegram';
-import { queryDb } from '@/lib/db';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rgsomwpnnhqkyybdivnx.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
 
 export async function POST(req: Request) {
   try {
     const update = await req.json();
 
+    // Idempotency: check if this update has already been processed
     const updateId = update.update_id;
     if (updateId) {
-      try {
-        const checkRes = await queryDb('SELECT update_id FROM public.telegram_updates WHERE update_id = $1', [updateId]);
-        if (checkRes && checkRes.rows && checkRes.rows.length > 0) {
-          return NextResponse.json({ ok: true, duplicate: true });
-        }
-        await queryDb('INSERT INTO public.telegram_updates (update_id) VALUES ($1) ON CONFLICT DO NOTHING', [updateId]);
-      } catch {}
+      const { data: existing } = await supabaseAdmin
+        .from('telegram_updates')
+        .select('update_id')
+        .eq('update_id', updateId)
+        .maybeSingle();
+
+      if (existing) {
+        return NextResponse.json({ ok: true, duplicate: true }, { headers: corsHeaders });
+      }
+
+      await supabaseAdmin
+        .from('telegram_updates')
+        .upsert({ update_id: updateId }, { onConflict: 'update_id' });
     }
 
+    // Handle /start command for Telegram bot connection
     if (update.message && update.message.text) {
       const chatId = update.message.chat.id;
       const text = update.message.text.trim();
@@ -31,28 +38,43 @@ export async function POST(req: Request) {
         const token = parts[1];
 
         if (!token) {
-          return NextResponse.json({ ok: true });
+          return NextResponse.json({ ok: true }, { headers: corsHeaders });
         }
 
-        try {
-          const tokenRes = await queryDb('SELECT * FROM public.telegram_connection_tokens WHERE token = $1', [token]);
-          if (tokenRes && tokenRes.rows && tokenRes.rows.length > 0) {
-            const tokenRecord = tokenRes.rows[0];
-            await queryDb('UPDATE public.restaurants SET telegram_chat_id = $1, telegram_connected = true WHERE id = $2', [String(chatId), tokenRecord.restaurant_id]);
-            await queryDb('DELETE FROM public.telegram_connection_tokens WHERE token = $1', [token]);
+        // Look up connection token
+        const { data: tokenRecord } = await supabaseAdmin
+          .from('telegram_connection_tokens')
+          .select('*')
+          .eq('token', token)
+          .maybeSingle();
 
-            await sendTelegramMessage(
-              chatId,
-              `🎉 <b>Successfully Connected!</b>\n\nThis Telegram chat is now linked to your Menufy restaurant dashboard.\nYou will receive live customer table orders directly here!`
-            );
-          }
-        } catch {}
+        if (tokenRecord) {
+          // Link chat ID to restaurant
+          await supabaseAdmin
+            .from('restaurants')
+            .update({
+              telegram_chat_id: String(chatId),
+              telegram_connected: true,
+            })
+            .eq('id', tokenRecord.restaurant_id);
 
-        return NextResponse.json({ ok: true });
+          // Delete used token
+          await supabaseAdmin
+            .from('telegram_connection_tokens')
+            .delete()
+            .eq('token', token);
+
+          await sendTelegramMessage(
+            chatId,
+            `🎉 <b>Successfully Connected!</b>\n\nThis Telegram chat is now linked to your Menufy restaurant dashboard.\nYou will receive live customer table orders directly here!`
+          );
+        }
+
+        return NextResponse.json({ ok: true }, { headers: corsHeaders });
       }
     }
 
-    // Handle Inline Action Callbacks ([ ✅ Accept Order ] [ ❌ Reject Order ])
+    // Handle Inline Action Callbacks (Accept/Reject order buttons)
     if (update.callback_query) {
       const callbackQuery = update.callback_query;
       const callbackId = callbackQuery.id;
@@ -68,25 +90,28 @@ export async function POST(req: Request) {
         const newStatus = isAccept ? 'accepted' : 'rejected';
         const statusLabel = isAccept ? '✅ ORDER ACCEPTED BY STAFF' : '❌ ORDER REJECTED BY STAFF';
 
-        // Update database order status using native Postgres queryDb and internal PATCH
-        try {
-          await queryDb(
-            'UPDATE public.orders SET status = $1, updated_at = NOW() WHERE id = $2 OR id LIKE $3',
-            [newStatus, orderId, `${orderId}%`]
-          );
+        // *** KEY FIX: Update order status directly in Supabase ***
+        // This is the SAME operation as the PATCH /api/orders endpoint
+        const { error: updateError } = await supabaseAdmin
+          .from('orders')
+          .update({
+            status: newStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', orderId);
 
-          if (newStatus === 'rejected') {
-            await queryDb(`DELETE FROM public.orders WHERE id = $1 OR status IN ('completed', 'rejected')`, [orderId]).catch(() => {});
-          }
+        if (updateError) {
+          console.error('Telegram webhook order update error:', updateError.message);
+        }
 
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-          await fetch(`${appUrl}/api/orders`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order_id: orderId, status: newStatus }),
-          }).catch(() => {});
-        } catch (dbErr) {
-          console.warn('Postgres Telegram order status update skipped:', dbErr);
+        // Auto-prune rejected orders after 1 hour
+        if (newStatus === 'rejected') {
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+          await supabaseAdmin
+            .from('orders')
+            .delete()
+            .in('status', ['completed', 'rejected'])
+            .lt('updated_at', oneHourAgo);
         }
 
         // Answer callback query popup to Telegram user
@@ -98,18 +123,21 @@ export async function POST(req: Request) {
         // Edit Telegram message text & clear inline buttons to reflect new status
         if (messageId && chatId) {
           const originalText = callbackQuery.message?.text || '';
-          const cleanText = originalText.replace(/📌 Status:.*/g, '').replace(/📌 STATUS UPDATE:.*/g, '').trim();
+          const cleanText = originalText
+            .replace(/📌 Status:.*/g, '')
+            .replace(/📌 STATUS UPDATE:.*/g, '')
+            .trim();
           const updatedText = `${cleanText}\n\n========================================\n📌 <b>STATUS UPDATE:</b> ${statusLabel}`;
           await editTelegramMessageText(chatId, messageId, updatedText, { inline_keyboard: [] });
         }
       }
 
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true }, { headers: corsHeaders });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: corsHeaders });
   } catch (error: any) {
     console.error('Telegram webhook error:', error);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: corsHeaders });
   }
 }

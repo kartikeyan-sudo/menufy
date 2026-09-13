@@ -25,23 +25,30 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('menufy_session', 'active');
-        localStorage.setItem('menufy_user_email', email);
+      if (error) {
+        setErrorMsg(error.message || 'Invalid email or password. Please try again.');
+        setLoading(false);
+        return;
       }
 
-      router.push('/dashboard');
-    } catch (err: any) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('menufy_session', 'active');
-        localStorage.setItem('menufy_user_email', email);
+      if (data?.user) {
+        // Only set session markers on successful auth
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('menufy_session', 'active');
+          localStorage.setItem('menufy_user_email', email);
+        }
+        router.push('/dashboard');
+        router.refresh();
+      } else {
+        setErrorMsg('Login failed. Please check your credentials.');
       }
-      router.push('/dashboard');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }

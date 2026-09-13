@@ -17,31 +17,42 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMsg('');
 
     try {
       const supabase = createClient();
-      await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: { restaurant_name: restaurantName },
         },
       });
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('menufy_session', 'active');
-        localStorage.setItem('menufy_user_email', email);
+
+      if (error) {
+        setErrorMsg(error.message || 'Failed to create account. Please try again.');
+        setLoading(false);
+        return;
       }
-      router.push('/onboarding');
-    } catch (err) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('menufy_session', 'active');
-        localStorage.setItem('menufy_user_email', email);
+
+      if (data?.user) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('menufy_session', 'active');
+          localStorage.setItem('menufy_user_email', email);
+        }
+        router.push('/onboarding');
+        router.refresh();
+      } else {
+        // Supabase may require email confirmation
+        setErrorMsg('Please check your email to confirm your account, then sign in.');
       }
-      router.push('/onboarding');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -67,6 +78,12 @@ export default function SignupPage() {
               Start digitizing your menu in minutes with AI
             </p>
           </div>
+
+          {errorMsg && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs p-3 rounded-xl mb-4 text-center font-medium">
+              {errorMsg}
+            </div>
+          )}
 
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
@@ -110,6 +127,7 @@ export default function SignupPage() {
                 <input
                   type="password"
                   required
+                  minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"

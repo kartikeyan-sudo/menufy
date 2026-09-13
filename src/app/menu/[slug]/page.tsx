@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, use } from 'react';
+import React, { useState, use, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Search,
@@ -16,6 +16,7 @@ import {
   Moon,
   Camera,
   Ticket,
+  Loader2,
 } from 'lucide-react';
 
 interface CartItem {
@@ -25,10 +26,12 @@ interface CartItem {
   quantity: number;
 }
 
+const DEFAULT_RESTAURANT_ID = '11111111-1111-1111-1111-111111111111';
+
 const DEMO_MENU = {
   restaurantName: 'Sharma Cafe',
   slug: 'sharma-cafe',
-  restaurantId: '11111111-1111-1111-1111-111111111111',
+  restaurantId: DEFAULT_RESTAURANT_ID,
   description: 'Fresh Wood-fired Pizzas, Gourmet Burgers & Artisanal Coffee',
   categories: [
     {
@@ -103,40 +106,32 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
-  const [tableNumber, setTableNumber] = useState<string>('7');
+  const [tableNumber, setTableNumber] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [orderSuccess, setOrderSuccess] = useState<any>(null);
+  const [menuLoading, setMenuLoading] = useState<boolean>(true);
 
   const [categoriesList, setCategoriesList] = useState<any[]>(DEMO_MENU.categories);
 
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('menufy_restaurant_info');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed.name) setRestName(parsed.name);
-          if (parsed.description) setRestDesc(parsed.description);
-        } catch {}
-      }
+  // Fetch menu from API (works for both owner and customer on any device/browser)
+  useEffect(() => {
+    const fetchMenuFromAPI = async () => {
+      try {
+        const res = await fetch(`/api/menu?restaurant_id=${DEFAULT_RESTAURANT_ID}`);
+        const data = await res.json();
 
-      const savedCats = localStorage.getItem('menufy_custom_categories');
-      const savedItems = localStorage.getItem('menufy_custom_items');
-      if (savedCats && savedItems) {
-        try {
-          const parsedCats = JSON.parse(savedCats);
-          const parsedItems = JSON.parse(savedItems);
-          const formattedCategories = parsedCats.map((cat: any) => {
-            const catItems = parsedItems
+        if (data.success && data.categories && data.categories.length > 0) {
+          const formattedCategories = data.categories.map((cat: any) => {
+            const catItems = (data.items || [])
               .filter((i: any) => i.category_id === cat.id && i.is_available !== false)
               .map((i: any) => ({
                 id: i.id,
                 name: i.name,
-                description: i.description,
-                price: i.price,
-                image: i.image_url,
+                description: i.description || '',
+                price: Number(i.price),
+                image: i.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
               }));
             return {
               id: cat.id,
@@ -144,10 +139,31 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
               items: catItems,
             };
           });
-          setCategoriesList(formattedCategories);
-        } catch {}
+
+          if (formattedCategories.some((c: any) => c.items.length > 0)) {
+            setCategoriesList(formattedCategories);
+          }
+        }
+
+        // Also try to get restaurant info
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('menufy_restaurant_info');
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed.name) setRestName(parsed.name);
+              if (parsed.description) setRestDesc(parsed.description);
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch menu from API, using demo data:', err);
+      } finally {
+        setMenuLoading(false);
       }
-    }
+    };
+
+    fetchMenuFromAPI();
   }, []);
 
   const toggleTheme = () => {
@@ -182,15 +198,18 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
   const totalAmount = cart.reduce((acc, i) => acc + i.price * i.quantity, 0);
 
   const handlePlaceOrder = async () => {
-    if (!tableNumber.trim()) return;
+    if (!tableNumber.trim()) {
+      alert('Please enter your table number.');
+      return;
+    }
     setIsSubmitting(true);
 
     try {
       const orderPayload = {
-        restaurant_id: DEMO_MENU.restaurantId,
+        restaurant_id: DEFAULT_RESTAURANT_ID,
         table_number: tableNumber,
-        customer_name: customerName,
-        customer_phone: customerPhone,
+        customer_name: customerName || undefined,
+        customer_phone: customerPhone || undefined,
         items: cart.map((i) => ({
           menu_item_id: i.id,
           item_name: i.name,
@@ -217,14 +236,11 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
         });
         setCart([]);
         setIsCartOpen(false);
-
-        // Auto trigger local Telegram polling to handle live Updates
-        fetch('/api/telegram/poll').catch(() => {});
       } else {
         alert(data.error || 'Failed to place order. Please try again.');
       }
     } catch (err: any) {
-      alert('Network error while placing order.');
+      alert('Network error while placing order. Please check your connection.');
     } finally {
       setIsSubmitting(false);
     }
@@ -235,7 +251,7 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
       const items = cat.items.filter(
         (item: any) =>
           item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.description.toLowerCase().includes(searchQuery.toLowerCase())
+          (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()))
       );
       return { ...cat, items };
     })
@@ -345,7 +361,12 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
 
       {/* Menu Categories & Items List */}
       <main className="p-4 space-y-8">
-        {filteredCategories.length === 0 ? (
+        {menuLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-7 h-7 animate-spin text-orange-500" />
+            <span className="ml-2 text-sm text-slate-500">Loading menu...</span>
+          </div>
+        ) : filteredCategories.length === 0 ? (
           <div className="text-center py-12 text-slate-500 text-sm">No items found matching "{searchQuery}"</div>
         ) : (
           filteredCategories.map((cat) => (
@@ -545,7 +566,7 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
               className="w-full h-13 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 font-bold text-white text-base flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 transition-all disabled:opacity-50 py-3"
             >
               {isSubmitting ? (
-                <span>Sending Order...</span>
+                <><Loader2 className="w-5 h-5 animate-spin" /> Sending Order...</>
               ) : (
                 <>
                   <Send className="w-5 h-5" />

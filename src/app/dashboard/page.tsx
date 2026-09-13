@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { createClient } from '@/lib/supabase/client';
+
+const DEFAULT_RESTAURANT_ID = '11111111-1111-1111-1111-111111111111';
 
 export default function DashboardPage() {
   const { theme } = useTheme();
@@ -27,15 +28,18 @@ export default function DashboardPage() {
   const [testSending, setTestSending] = useState<boolean>(false);
   const [liveOrders, setLiveOrders] = useState<any[]>([]);
   const [ordersTodayCount, setOrdersTodayCount] = useState<number>(0);
+  const [totalMenuItems, setTotalMenuItems] = useState<number>(0);
+  const [activeCategoriesCount, setActiveCategoriesCount] = useState<number>(0);
 
   const fetchDashboardData = async () => {
     try {
-      const res = await fetch('/api/orders');
-      const data = await res.json();
+      // Fetch orders
+      const ordersRes = await fetch('/api/orders');
+      const ordersData = await ordersRes.json();
 
-      if (data.success && data.orders && data.orders.length > 0) {
-        setOrdersTodayCount(data.orders.length);
-        const formatted = data.orders.slice(0, 3).map((o: any) => {
+      if (ordersData.success && ordersData.orders && ordersData.orders.length > 0) {
+        setOrdersTodayCount(ordersData.orders.length);
+        const formatted = ordersData.orders.slice(0, 3).map((o: any) => {
           const itemsStr =
             o.order_items && o.order_items.length > 0
               ? o.order_items.map((i: any) => `${i.item_name} × ${i.quantity}`).join(', ')
@@ -55,6 +59,14 @@ export default function DashboardPage() {
         setLiveOrders([]);
         setOrdersTodayCount(0);
       }
+
+      // Fetch menu stats
+      const menuRes = await fetch(`/api/menu?restaurant_id=${DEFAULT_RESTAURANT_ID}`);
+      const menuData = await menuRes.json();
+      if (menuData.success) {
+        setTotalMenuItems((menuData.items || []).length);
+        setActiveCategoriesCount((menuData.categories || []).length);
+      }
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
     }
@@ -62,6 +74,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData();
+
+    // Load telegram status
+    if (typeof window !== 'undefined') {
+      const savedTelegramStatus = localStorage.getItem('menufy_telegram_connected');
+      if (savedTelegramStatus !== null) {
+        setIsConnected(savedTelegramStatus === 'true');
+      }
+    }
   }, []);
 
   const handleConnectTelegram = async () => {
@@ -71,6 +91,10 @@ export default function DashboardPage() {
       const data = await res.json();
       if (data.success && data.deepLink) {
         setDeepLinkUrl(data.deepLink);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('menufy_telegram_connected', 'true');
+        }
+        setIsConnected(true);
         window.open(data.deepLink, '_blank');
       }
     } catch {
@@ -84,6 +108,9 @@ export default function DashboardPage() {
     if (!confirm('Are you sure you want to disconnect Telegram notifications?')) return;
     try {
       await fetch('/api/telegram/disconnect', { method: 'POST' });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('menufy_telegram_connected', 'false');
+      }
       setIsConnected(false);
       setDeepLinkUrl('');
     } catch {
@@ -98,7 +125,7 @@ export default function DashboardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          restaurant_id: '11111111-1111-1111-1111-111111111111',
+          restaurant_id: DEFAULT_RESTAURANT_ID,
           table_number: '7',
           customer_name: 'Test Customer',
           items: [
@@ -121,46 +148,10 @@ export default function DashboardPage() {
     }
   };
 
-  const [totalMenuItems, setTotalMenuItems] = useState<number>(3);
-  const [activeCategoriesCount, setActiveCategoriesCount] = useState<number>(3);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedCats = localStorage.getItem('menufy_custom_categories');
-      const savedItems = localStorage.getItem('menufy_custom_items');
-      if (savedCats) {
-        try {
-          setActiveCategoriesCount(JSON.parse(savedCats).length);
-        } catch {}
-      }
-      if (savedItems) {
-        try {
-          setTotalMenuItems(JSON.parse(savedItems).length);
-        } catch {}
-      }
-    }
-  }, []);
-
-  // 3-second live refresh sync with /api/orders & Telegram
+  // 5-second live refresh sync
   const { lastUpdated } = useLiveRefresh({
-    intervalMs: 3000,
-    onRefresh: async () => {
-      await fetchDashboardData();
-      if (typeof window !== 'undefined') {
-        const savedCats = localStorage.getItem('menufy_custom_categories');
-        const savedItems = localStorage.getItem('menufy_custom_items');
-        if (savedCats) {
-          try {
-            setActiveCategoriesCount(JSON.parse(savedCats).length);
-          } catch {}
-        }
-        if (savedItems) {
-          try {
-            setTotalMenuItems(JSON.parse(savedItems).length);
-          } catch {}
-        }
-      }
-    },
+    intervalMs: 5000,
+    onRefresh: fetchDashboardData,
   });
 
   return (
@@ -226,35 +217,39 @@ export default function DashboardPage() {
           </div>
 
           <div className={`divide-y ${isDark ? 'divide-slate-800/60' : 'divide-slate-200'}`}>
-            {liveOrders.map((ord) => (
-              <div key={ord.id} className="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono font-bold text-sm text-orange-600 dark:text-orange-500">#{ord.id}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${isDark ? 'text-slate-300 bg-slate-800' : 'text-slate-700 bg-slate-200'}`}>Table {ord.table}</span>
-                    <span className="text-xs text-slate-500">{ord.time}</span>
+            {liveOrders.length === 0 ? (
+              <div className="py-8 text-center text-sm text-slate-500">No active orders right now.</div>
+            ) : (
+              liveOrders.map((ord) => (
+                <div key={ord.id} className="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono font-bold text-sm text-orange-500">#{ord.id}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${isDark ? 'text-slate-300 bg-slate-800' : 'text-slate-700 bg-slate-200'}`}>Table {ord.table}</span>
+                      <span className="text-xs text-slate-500">{ord.time}</span>
+                    </div>
+                    <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{ord.items}</p>
                   </div>
-                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{ord.items}</p>
-                </div>
 
-                <div className="flex items-center gap-4 w-full sm:w-auto justify-between">
-                  <span className="font-extrabold text-orange-600 dark:text-orange-500 text-sm">₹{ord.total}</span>
-                  <span
-                    className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider ${
-                      ord.status === 'pending'
-                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                        : ord.status === 'accepted'
-                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                        : ord.status === 'rejected'
-                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                        : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    }`}
-                  >
-                    {ord.status}
-                  </span>
+                  <div className="flex items-center gap-4 w-full sm:w-auto justify-between">
+                    <span className="font-extrabold text-orange-500 text-sm">₹{ord.total}</span>
+                    <span
+                      className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider ${
+                        ord.status === 'pending'
+                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                          : ord.status === 'accepted'
+                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                          : ord.status === 'rejected'
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      }`}
+                    >
+                      {ord.status}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -283,9 +278,9 @@ export default function DashboardPage() {
             {isConnected ? (
               <button
                 onClick={handleDisconnectTelegram}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-red-500/20 hover:text-red-400 text-slate-300 text-xs font-semibold"
+                className={`px-4 py-2 rounded-xl font-semibold text-xs ${isDark ? 'bg-slate-800 hover:bg-red-500/20 hover:text-red-400 text-slate-300' : 'bg-slate-200 hover:bg-red-500/10 hover:text-red-600 text-slate-700'}`}
               >
-                Disconnect
+              Disconnect
               </button>
             ) : (
               <button
@@ -293,7 +288,7 @@ export default function DashboardPage() {
                 disabled={connecting}
                 className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold"
               >
-                Connect
+              Connect
               </button>
             )}
           </div>
