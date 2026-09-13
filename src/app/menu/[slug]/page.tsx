@@ -261,10 +261,10 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
 
   return (
     <div
-      className={`min-h-screen transition-colors duration-300 pb-28 max-w-md mx-auto relative border-x shadow-2xl ${
+      className={`min-h-screen transition-colors duration-300 pb-28 max-w-5xl mx-auto relative md:border-x shadow-xl md:shadow-2xl ${
         isDark
-          ? 'bg-slate-950 text-slate-100 border-slate-800/80'
-          : 'bg-slate-50 text-slate-900 border-slate-200'
+          ? 'bg-slate-950 text-slate-100 md:border-slate-800/80'
+          : 'bg-slate-50 text-slate-900 md:border-slate-200'
       }`}
     >
       {/* Restaurant Header */}
@@ -378,7 +378,7 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
               >
                 {cat.name}
               </h2>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {cat.items.map((item: any) => {
                   const cartItem = cart.find((i) => i.id === item.id);
                   return (
@@ -468,9 +468,9 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
 
       {/* Checkout Drawer / Modal */}
       {isCartOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end justify-center">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4">
           <div
-            className={`border-t rounded-t-3xl p-6 w-full max-w-md space-y-6 max-h-[90vh] overflow-y-auto ${
+            className={`border-t md:border rounded-t-3xl md:rounded-3xl p-6 w-full max-w-lg space-y-6 max-h-[90vh] overflow-y-auto ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xl'
             }`}
           >
