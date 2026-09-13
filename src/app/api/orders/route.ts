@@ -19,7 +19,15 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, order });
     }
 
-    const ordersRes = await queryDb('SELECT * FROM public.orders ORDER BY created_at DESC');
+    // Auto-prune completed/rejected orders to prevent storage overflow
+    await queryDb(`
+      DELETE FROM public.orders 
+      WHERE status IN ('completed', 'rejected') 
+         OR id NOT IN (SELECT id FROM public.orders ORDER BY created_at DESC LIMIT 3)
+    `).catch(() => {});
+
+    // Fetch maximum 3 latest active orders
+    const ordersRes = await queryDb('SELECT * FROM public.orders ORDER BY created_at DESC LIMIT 3');
     const orders = ordersRes.rows;
 
     if (orders.length > 0) {
@@ -62,6 +70,12 @@ export async function PATCH(req: Request) {
     }
 
     const order = res.rows[0];
+
+    // If completed or rejected, auto-clean from database to prevent storage overflow
+    if (status === 'completed' || status === 'rejected') {
+      await queryDb(`DELETE FROM public.orders WHERE id = $1 OR status IN ('completed', 'rejected')`, [order_id]).catch(() => {});
+    }
+
     const itemsRes = await queryDb('SELECT * FROM public.order_items WHERE order_id = $1', [order_id]);
     order.order_items = itemsRes.rows;
 
@@ -87,7 +101,6 @@ export async function POST(req: Request) {
     let restaurantName = 'Sharma Cafe';
     let targetChatId = process.env.TELEGRAM_DEFAULT_CHAT_ID || '5359923752';
 
-    // 1. Fetch restaurant from DB if exists
     try {
       const restRes = await queryDb('SELECT * FROM public.restaurants WHERE id = $1', [restaurant_id]);
       if (restRes.rows.length > 0) {
@@ -118,11 +131,17 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Insert Order in Postgres
     const orderId = crypto.randomUUID();
     let orderStatus = 'pending';
 
     try {
+      // Auto-prune old completed/rejected orders to maintain maximum 3 active orders in DB
+      await queryDb(`
+        DELETE FROM public.orders 
+        WHERE status IN ('completed', 'rejected') 
+           OR id NOT IN (SELECT id FROM public.orders ORDER BY created_at DESC LIMIT 2)
+      `).catch(() => {});
+
       const orderRes = await queryDb(
         `INSERT INTO public.orders (id, restaurant_id, table_number, customer_name, customer_phone, total_amount, status, telegram_sent)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
@@ -133,7 +152,6 @@ export async function POST(req: Request) {
         orderStatus = orderRes.rows[0].status || 'pending';
       }
 
-      // Insert order items
       for (const vi of validatedOrderItems) {
         await queryDb(
           `INSERT INTO public.order_items (order_id, item_name, quantity, price_at_order)
@@ -145,7 +163,6 @@ export async function POST(req: Request) {
       console.warn('Postgres order insertion warning (proceeding with Telegram notification):', dbErr.message);
     }
 
-    // 3. Telegram Notification Dispatch
     let telegramSent = false;
     let telegramErrorStr = null;
 

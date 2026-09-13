@@ -62,14 +62,9 @@ export default function DashboardOrdersPage() {
             time: timeStr,
           };
         });
-        setOrders(formatted);
+        setOrders(formatted.slice(0, 3));
       } else {
-        // Fallback default sample orders if database has no orders yet
-        setOrders([
-          { id: '1048', fullId: '1048', table: '7', customerName: 'Rahul', items: 'Margherita × 2, Cold Coffee × 1', total: 518, status: 'pending', time: '8:42 PM' },
-          { id: '1047', fullId: '1047', table: '3', customerName: 'Priya', items: 'Farmhouse Pizza × 1, French Fries × 1', total: 398, status: 'accepted', time: '8:30 PM' },
-          { id: '1046', fullId: '1046', table: '12', customerName: 'Amit', items: 'Peri Peri Fries × 2, Fresh Lime Soda × 2', total: 458, status: 'completed', time: '8:15 PM' },
-        ]);
+        setOrders([]);
       }
     } catch (err) {
       console.error('Failed to load live orders:', err);
@@ -82,9 +77,9 @@ export default function DashboardOrdersPage() {
     fetchOrders();
   }, []);
 
-  // Reusable 30-second live refresh hook
+  // 3-second live refresh sync with /api/orders & Telegram
   const { lastUpdated } = useLiveRefresh({
-    intervalMs: 30000,
+    intervalMs: 3000,
     onRefresh: async () => {
       await fetchOrders();
     },

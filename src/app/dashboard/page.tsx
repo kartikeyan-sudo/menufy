@@ -35,7 +35,7 @@ export default function DashboardPage() {
 
       if (data.success && data.orders && data.orders.length > 0) {
         setOrdersTodayCount(data.orders.length);
-        const formatted = data.orders.slice(0, 5).map((o: any) => {
+        const formatted = data.orders.slice(0, 3).map((o: any) => {
           const itemsStr =
             o.order_items && o.order_items.length > 0
               ? o.order_items.map((i: any) => `${i.item_name} × ${i.quantity}`).join(', ')
@@ -52,12 +52,8 @@ export default function DashboardPage() {
         });
         setLiveOrders(formatted);
       } else {
-        setLiveOrders([
-          { id: '1048', table: '7', items: 'Margherita × 2, Cold Coffee × 1', total: 518, status: 'pending', time: '8:42 PM' },
-          { id: '1047', table: '3', items: 'Farmhouse Pizza × 1, French Fries × 1', total: 398, status: 'accepted', time: '8:30 PM' },
-          { id: '1046', table: '12', items: 'Peri Peri Fries × 2, Fresh Lime Soda × 2', total: 458, status: 'completed', time: '8:15 PM' },
-        ]);
-        setOrdersTodayCount(3);
+        setLiveOrders([]);
+        setOrdersTodayCount(0);
       }
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
@@ -68,9 +64,9 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, []);
 
-  // 5-second live refresh sync with /api/orders
+  // 3-second live refresh sync with /api/orders & Telegram
   const { lastUpdated } = useLiveRefresh({
-    intervalMs: 5000,
+    intervalMs: 3000,
     onRefresh: async () => {
       await fetchDashboardData();
     },
