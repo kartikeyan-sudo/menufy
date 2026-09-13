@@ -102,6 +102,7 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
   const [restName, setRestName] = useState<string>(DEMO_MENU.restaurantName);
   const [restDesc, setRestDesc] = useState<string>(DEMO_MENU.description);
+  const [actualRestaurantId, setActualRestaurantId] = useState<string>(DEFAULT_RESTAURANT_ID);
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -119,41 +120,37 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
   useEffect(() => {
     const fetchMenuFromAPI = async () => {
       try {
-        const res = await fetch(`/api/menu?restaurant_id=${DEFAULT_RESTAURANT_ID}`);
+        const res = await fetch(`/api/menu?slug=${resolvedParams.slug}`);
         const data = await res.json();
 
-        if (data.success && data.categories && data.categories.length > 0) {
-          const formattedCategories = data.categories.map((cat: any) => {
-            const catItems = (data.items || [])
-              .filter((i: any) => i.category_id === cat.id && i.is_available !== false)
-              .map((i: any) => ({
-                id: i.id,
-                name: i.name,
-                description: i.description || '',
-                price: Number(i.price),
-                image: i.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
-              }));
-            return {
-              id: cat.id,
-              name: cat.name,
-              items: catItems,
-            };
-          });
-
-          if (formattedCategories.some((c: any) => c.items.length > 0)) {
-            setCategoriesList(formattedCategories);
+        if (data.success) {
+          if (data.restaurant) {
+            setRestName(data.restaurant.name);
+            setRestDesc(data.restaurant.description || '');
+            setActualRestaurantId(data.restaurant.id);
           }
-        }
 
-        // Also try to get restaurant info
-        if (typeof window !== 'undefined') {
-          const saved = localStorage.getItem('menufy_restaurant_info');
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (parsed.name) setRestName(parsed.name);
-              if (parsed.description) setRestDesc(parsed.description);
-            } catch {}
+          if (data.categories && data.categories.length > 0) {
+            const formattedCategories = data.categories.map((cat: any) => {
+              const catItems = (data.items || [])
+                .filter((i: any) => i.category_id === cat.id && i.is_available !== false)
+                .map((i: any) => ({
+                  id: i.id,
+                  name: i.name,
+                  description: i.description || '',
+                  price: Number(i.price),
+                  image: i.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
+                }));
+              return {
+                id: cat.id,
+                name: cat.name,
+                items: catItems,
+              };
+            });
+
+            if (formattedCategories.some((c: any) => c.items.length > 0)) {
+              setCategoriesList(formattedCategories);
+            }
           }
         }
       } catch (err) {
@@ -164,7 +161,7 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
     };
 
     fetchMenuFromAPI();
-  }, []);
+  }, [resolvedParams.slug]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -206,7 +203,7 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
 
     try {
       const orderPayload = {
-        restaurant_id: DEFAULT_RESTAURANT_ID,
+        restaurant_id: actualRestaurantId,
         table_number: tableNumber,
         customer_name: customerName || undefined,
         customer_phone: customerPhone || undefined,

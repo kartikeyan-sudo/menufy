@@ -16,6 +16,7 @@ export async function GET(req: Request) {
     const slug = searchParams.get('slug');
 
     let effectiveRestaurantId = restaurantId;
+    let restaurantObj = null;
 
     // If slug is provided, look up restaurant by slug
     if (slug) {
@@ -27,6 +28,7 @@ export async function GET(req: Request) {
 
       if (restaurant) {
         effectiveRestaurantId = restaurant.id;
+        restaurantObj = restaurant;
       }
     }
 
@@ -56,6 +58,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         success: true,
+        restaurant: restaurantObj,
         categories: categories || [],
         items: items || [],
       },
