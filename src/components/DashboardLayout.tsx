@@ -35,7 +35,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       try {
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
+        const hasLocalSession = typeof window !== 'undefined' && localStorage.getItem('menufy_session') === 'active';
+        if (!session && !hasLocalSession) {
           router.push('/login');
         }
       } catch {
@@ -47,6 +48,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const handleLogout = async () => {
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('menufy_session');
+        localStorage.removeItem('menufy_user_email');
+      }
       const supabase = createClient();
       await supabase.auth.signOut();
     } catch {

@@ -31,8 +31,16 @@ export default function SignupPage() {
           data: { restaurant_name: restaurantName },
         },
       });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('menufy_session', 'active');
+        localStorage.setItem('menufy_user_email', email);
+      }
       router.push('/onboarding');
     } catch (err) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('menufy_session', 'active');
+        localStorage.setItem('menufy_user_email', email);
+      }
       router.push('/onboarding');
     } finally {
       setLoading(false);

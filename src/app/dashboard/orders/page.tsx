@@ -161,17 +161,17 @@ export default function DashboardOrdersPage() {
               >
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="font-mono font-bold text-base text-orange-500">#{ord.id}</span>
-                    <span className="text-xs font-bold text-slate-300 bg-slate-800 px-2.5 py-1 rounded-lg">
+                    <span className="font-mono font-bold text-base text-orange-600 dark:text-orange-500">#{ord.id}</span>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${isDark ? 'text-slate-300 bg-slate-800' : 'text-slate-700 bg-slate-200'}`}>
                       Table {ord.table}
                     </span>
                     {ord.customerName && (
-                      <span className="text-xs text-slate-400">Customer: {ord.customerName}</span>
+                      <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Customer: {ord.customerName}</span>
                     )}
                     <span className="text-xs text-slate-500">{ord.time}</span>
                   </div>
-                  <p className="text-sm font-medium text-slate-200 mb-1">{ord.items}</p>
-                  <p className="text-sm font-extrabold text-orange-500">Total: ₹{ord.total}</p>
+                  <p className={`text-sm font-medium mb-1 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{ord.items}</p>
+                  <p className="text-sm font-extrabold text-orange-600 dark:text-orange-500">Total: ₹{ord.total}</p>
                 </div>
 
                 <div className="flex items-center gap-3 w-full md:w-auto justify-between">

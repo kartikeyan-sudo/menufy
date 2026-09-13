@@ -249,10 +249,10 @@ export default function ManualMenuManagementPage() {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <h3 className="font-bold text-sm truncate">{item.name}</h3>
-                          <span className="font-bold text-orange-500 text-sm">₹{item.price}</span>
+                          <h3 className={`font-bold text-sm truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.name}</h3>
+                          <span className="font-extrabold text-orange-600 dark:text-orange-500 text-sm">₹{item.price}</span>
                         </div>
-                        <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">{item.description}</p>
+                        <p className={`text-xs line-clamp-1 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{item.description}</p>
 
                         <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-slate-800">
                           <button

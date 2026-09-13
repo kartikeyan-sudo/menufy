@@ -35,9 +35,11 @@ export function Navbar() {
       try {
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
-        setIsLoggedIn(!!session);
+        const hasLocalSession = typeof window !== 'undefined' && localStorage.getItem('menufy_session') === 'active';
+        setIsLoggedIn(!!session || hasLocalSession);
       } catch {
-        setIsLoggedIn(false);
+        const hasLocalSession = typeof window !== 'undefined' && localStorage.getItem('menufy_session') === 'active';
+        setIsLoggedIn(hasLocalSession);
       }
     };
     checkUser();

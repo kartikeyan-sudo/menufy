@@ -546,15 +546,15 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
 
             {/* Order Items & Payment Summary */}
             <div className={`p-4 rounded-2xl text-xs space-y-2 border text-left ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-              <p className="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Order Summary</p>
+              <p className={`font-bold uppercase tracking-wider text-[10px] mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Order Summary</p>
               {orderSuccess.items &&
                 orderSuccess.items.map((i: any, idx: number) => (
-                  <div key={idx} className="flex justify-between text-slate-300">
+                  <div key={idx} className={`flex justify-between ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                     <span>{i.name} × {i.quantity}</span>
                     <span className="font-semibold">₹{i.price * i.quantity}</span>
                   </div>
                 ))}
-              <div className="border-t border-slate-800 pt-2 flex justify-between font-extrabold text-sm text-orange-500">
+              <div className={`border-t pt-2 flex justify-between font-extrabold text-sm text-orange-600 dark:text-orange-500 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                 <span>Total Payment Amount</span>
                 <span>₹{orderSuccess.total_amount}</span>
               </div>

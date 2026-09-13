@@ -166,22 +166,22 @@ export default function DashboardPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-            <p className="text-xs text-slate-400 font-medium mb-1">Total Menu Items</p>
-            <p className="text-2xl font-extrabold">24</p>
+            <p className={`text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total Menu Items</p>
+            <p className={`text-2xl font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>24</p>
           </div>
           <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-            <p className="text-xs text-slate-400 font-medium mb-1">Active Categories</p>
-            <p className="text-2xl font-extrabold">6</p>
+            <p className={`text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Active Categories</p>
+            <p className={`text-2xl font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>6</p>
           </div>
           <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-            <p className="text-xs text-slate-400 font-medium mb-1">Menu Status</p>
+            <p className={`text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Menu Status</p>
             <div className="flex items-center gap-2 mt-1">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-base font-bold text-emerald-500">Live</span>
             </div>
           </div>
           <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-            <p className="text-xs text-slate-400 font-medium mb-1">Orders Today</p>
+            <p className={`text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Orders Today</p>
             <p className="text-2xl font-extrabold text-amber-500">{ordersTodayCount}</p>
           </div>
         </div>
@@ -189,26 +189,26 @@ export default function DashboardPage() {
         {/* Recent Orders Section */}
         <div className={`border rounded-2xl p-6 mb-8 ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-lg">Recent Orders</h3>
+            <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>Recent Orders</h3>
             <Link href="/dashboard/orders" className="text-xs font-semibold text-orange-500 hover:underline">
               View All Orders →
             </Link>
           </div>
 
-          <div className="divide-y divide-slate-800/60">
+          <div className={`divide-y ${isDark ? 'divide-slate-800/60' : 'divide-slate-200'}`}>
             {liveOrders.map((ord) => (
               <div key={ord.id} className="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono font-bold text-sm text-orange-500">#{ord.id}</span>
-                    <span className="text-xs font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded-md">Table {ord.table}</span>
+                    <span className="font-mono font-bold text-sm text-orange-600 dark:text-orange-500">#{ord.id}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${isDark ? 'text-slate-300 bg-slate-800' : 'text-slate-700 bg-slate-200'}`}>Table {ord.table}</span>
                     <span className="text-xs text-slate-500">{ord.time}</span>
                   </div>
                   <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{ord.items}</p>
                 </div>
 
                 <div className="flex items-center gap-4 w-full sm:w-auto justify-between">
-                  <span className="font-bold text-orange-500 text-sm">₹{ord.total}</span>
+                  <span className="font-extrabold text-orange-600 dark:text-orange-500 text-sm">₹{ord.total}</span>
                   <span
                     className={`text-xs font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider ${
                       ord.status === 'pending'

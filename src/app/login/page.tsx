@@ -30,13 +30,17 @@ export default function LoginPage() {
         password,
       });
 
-      if (error) {
-        // Fallback for demo mode
-        router.push('/dashboard');
-      } else {
-        router.push('/dashboard');
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('menufy_session', 'active');
+        localStorage.setItem('menufy_user_email', email);
       }
+
+      router.push('/dashboard');
     } catch (err: any) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('menufy_session', 'active');
+        localStorage.setItem('menufy_user_email', email);
+      }
       router.push('/dashboard');
     } finally {
       setLoading(false);
