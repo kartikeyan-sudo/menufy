@@ -48,6 +48,11 @@ export default function SettingsPage() {
           if (parsed.phone) setPhone(parsed.phone);
         } catch {}
       }
+
+      const savedTelegramStatus = localStorage.getItem('menufy_telegram_connected');
+      if (savedTelegramStatus !== null) {
+        setIsConnected(savedTelegramStatus === 'true');
+      }
     }
   }, []);
 
@@ -74,6 +79,10 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.success && data.deepLink) {
         setDeepLinkUrl(data.deepLink);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('menufy_telegram_connected', 'true');
+        }
+        setIsConnected(true);
         window.open(data.deepLink, '_blank');
       }
     } catch {
@@ -87,6 +96,9 @@ export default function SettingsPage() {
     if (!confirm('Are you sure you want to disconnect Telegram notifications?')) return;
     try {
       await fetch('/api/telegram/disconnect', { method: 'POST' });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('menufy_telegram_connected', 'false');
+      }
       setIsConnected(false);
       setDeepLinkUrl('');
     } catch {

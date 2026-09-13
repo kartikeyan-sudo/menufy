@@ -109,6 +109,8 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [orderSuccess, setOrderSuccess] = useState<any>(null);
 
+  const [categoriesList, setCategoriesList] = useState<any[]>(DEMO_MENU.categories);
+
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('menufy_restaurant_info');
@@ -117,6 +119,32 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
           const parsed = JSON.parse(saved);
           if (parsed.name) setRestName(parsed.name);
           if (parsed.description) setRestDesc(parsed.description);
+        } catch {}
+      }
+
+      const savedCats = localStorage.getItem('menufy_custom_categories');
+      const savedItems = localStorage.getItem('menufy_custom_items');
+      if (savedCats && savedItems) {
+        try {
+          const parsedCats = JSON.parse(savedCats);
+          const parsedItems = JSON.parse(savedItems);
+          const formattedCategories = parsedCats.map((cat: any) => {
+            const catItems = parsedItems
+              .filter((i: any) => i.category_id === cat.id && i.is_available !== false)
+              .map((i: any) => ({
+                id: i.id,
+                name: i.name,
+                description: i.description,
+                price: i.price,
+                image: i.image_url,
+              }));
+            return {
+              id: cat.id,
+              name: cat.name,
+              items: catItems,
+            };
+          });
+          setCategoriesList(formattedCategories);
         } catch {}
       }
     }
@@ -202,10 +230,10 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
     }
   };
 
-  const filteredCategories = DEMO_MENU.categories
+  const filteredCategories = categoriesList
     .map((cat) => {
       const items = cat.items.filter(
-        (item) =>
+        (item: any) =>
           item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.description.toLowerCase().includes(searchQuery.toLowerCase())
       );
@@ -298,7 +326,7 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
         >
           All
         </button>
-        {DEMO_MENU.categories.map((cat) => (
+        {categoriesList.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setActiveCategory(cat.name)}
@@ -330,7 +358,7 @@ export default function CustomerMenuPage({ params }: { params: Promise<{ slug: s
                 {cat.name}
               </h2>
               <div className="space-y-4">
-                {cat.items.map((item) => {
+                {cat.items.map((item: any) => {
                   const cartItem = cart.find((i) => i.id === item.id);
                   return (
                     <div

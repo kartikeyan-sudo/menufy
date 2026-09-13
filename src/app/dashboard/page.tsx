@@ -64,14 +64,6 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, []);
 
-  // 3-second live refresh sync with /api/orders & Telegram
-  const { lastUpdated } = useLiveRefresh({
-    intervalMs: 3000,
-    onRefresh: async () => {
-      await fetchDashboardData();
-    },
-  });
-
   const handleConnectTelegram = async () => {
     setConnecting(true);
     try {
@@ -129,13 +121,55 @@ export default function DashboardPage() {
     }
   };
 
+  const [totalMenuItems, setTotalMenuItems] = useState<number>(3);
+  const [activeCategoriesCount, setActiveCategoriesCount] = useState<number>(3);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedCats = localStorage.getItem('menufy_custom_categories');
+      const savedItems = localStorage.getItem('menufy_custom_items');
+      if (savedCats) {
+        try {
+          setActiveCategoriesCount(JSON.parse(savedCats).length);
+        } catch {}
+      }
+      if (savedItems) {
+        try {
+          setTotalMenuItems(JSON.parse(savedItems).length);
+        } catch {}
+      }
+    }
+  }, []);
+
+  // 3-second live refresh sync with /api/orders & Telegram
+  const { lastUpdated } = useLiveRefresh({
+    intervalMs: 3000,
+    onRefresh: async () => {
+      await fetchDashboardData();
+      if (typeof window !== 'undefined') {
+        const savedCats = localStorage.getItem('menufy_custom_categories');
+        const savedItems = localStorage.getItem('menufy_custom_items');
+        if (savedCats) {
+          try {
+            setActiveCategoriesCount(JSON.parse(savedCats).length);
+          } catch {}
+        }
+        if (savedItems) {
+          try {
+            setTotalMenuItems(JSON.parse(savedItems).length);
+          } catch {}
+        }
+      }
+    },
+  });
+
   return (
     <DashboardLayout>
       <main className="p-6 md:p-10 max-w-6xl">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold">Sharma Cafe Overview</h1>
+            <h1 className="text-2xl font-bold">Overview</h1>
             <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               Live status, QR analytics & incoming table orders.
             </p>
@@ -163,11 +197,11 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
             <p className={`text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total Menu Items</p>
-            <p className={`text-2xl font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>24</p>
+            <p className={`text-2xl font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>{totalMenuItems}</p>
           </div>
           <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
             <p className={`text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Active Categories</p>
-            <p className={`text-2xl font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>6</p>
+            <p className={`text-2xl font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeCategoriesCount}</p>
           </div>
           <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
             <p className={`text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Menu Status</p>

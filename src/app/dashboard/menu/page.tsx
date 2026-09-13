@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import {
   Plus,
@@ -11,7 +11,6 @@ import {
   X,
   Eye,
   EyeOff,
-  Image as ImageIcon,
   FolderPlus,
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
@@ -31,45 +30,48 @@ interface Category {
   name: string;
 }
 
+const DEFAULT_CATEGORIES: Category[] = [
+  { id: 'cat-1', name: 'Pizzas' },
+  { id: 'cat-2', name: 'Beverages' },
+  { id: 'cat-3', name: 'Sides & Desserts' },
+];
+
+const DEFAULT_ITEMS: MenuItem[] = [
+  {
+    id: 'item-1',
+    category_id: 'cat-1',
+    name: 'Margherita Pizza',
+    description: 'Fresh mozzarella, San Marzano tomatoes, and organic basil.',
+    price: 199,
+    image_url: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=600&q=80',
+    is_available: true,
+  },
+  {
+    id: 'item-2',
+    category_id: 'cat-1',
+    name: 'Farmhouse Pizza',
+    description: 'Crisp capsicum, red onion, button mushroom & sweet corn.',
+    price: 249,
+    image_url: 'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?auto=format&fit=crop&w=600&q=80',
+    is_available: true,
+  },
+  {
+    id: 'item-3',
+    category_id: 'cat-2',
+    name: 'Classic Cold Coffee',
+    description: 'Dark espresso whipped with cold milk and vanilla ice cream.',
+    price: 120,
+    image_url: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=600&q=80',
+    is_available: true,
+  },
+];
+
 export default function ManualMenuManagementPage() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  const [categories, setCategories] = useState<Category[]>([
-    { id: 'cat-1', name: 'Pizzas' },
-    { id: 'cat-2', name: 'Beverages' },
-    { id: 'cat-3', name: 'Sides & Desserts' },
-  ]);
-
-  const [items, setItems] = useState<MenuItem[]>([
-    {
-      id: 'item-1',
-      category_id: 'cat-1',
-      name: 'Margherita Pizza',
-      description: 'Fresh mozzarella, San Marzano tomatoes, and organic basil.',
-      price: 199,
-      image_url: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=600&q=80',
-      is_available: true,
-    },
-    {
-      id: 'item-2',
-      category_id: 'cat-1',
-      name: 'Farmhouse Pizza',
-      description: 'Crisp capsicum, red onion, button mushroom & sweet corn.',
-      price: 249,
-      image_url: 'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?auto=format&fit=crop&w=600&q=80',
-      is_available: true,
-    },
-    {
-      id: 'item-3',
-      category_id: 'cat-2',
-      name: 'Classic Cold Coffee',
-      description: 'Dark espresso whipped with cold milk and vanilla ice cream.',
-      price: 120,
-      image_url: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=600&q=80',
-      is_available: true,
-    },
-  ]);
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [items, setItems] = useState<MenuItem[]>(DEFAULT_ITEMS);
 
   // Form Modal States
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -87,6 +89,33 @@ export default function ManualMenuManagementPage() {
 
   // Category Form Field
   const [newCatName, setNewCatName] = useState('');
+
+  // Load custom menu data from local storage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedCats = localStorage.getItem('menufy_custom_categories');
+      const savedItems = localStorage.getItem('menufy_custom_items');
+
+      if (savedCats) {
+        try {
+          setCategories(JSON.parse(savedCats));
+        } catch {}
+      }
+      if (savedItems) {
+        try {
+          setItems(JSON.parse(savedItems));
+        } catch {}
+      }
+    }
+  }, []);
+
+  // Helper to persist categories and items
+  const persistMenu = (updatedCats: Category[], updatedItems: MenuItem[]) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('menufy_custom_categories', JSON.stringify(updatedCats));
+      localStorage.setItem('menufy_custom_items', JSON.stringify(updatedItems));
+    }
+  };
 
   const openAddItemModal = () => {
     setEditingItem(null);
@@ -127,21 +156,21 @@ export default function ManualMenuManagementPage() {
     e.preventDefault();
     if (!itemName.trim() || itemPrice === '') return;
 
+    let updatedItems: MenuItem[] = [];
+
     if (editingItem) {
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === editingItem.id
-            ? {
-                ...i,
-                name: itemName,
-                description: itemDescription,
-                price: Number(itemPrice),
-                category_id: itemCategoryId,
-                image_url: itemImageUrl || i.image_url,
-                is_available: itemAvailable,
-              }
-            : i
-        )
+      updatedItems = items.map((i) =>
+        i.id === editingItem.id
+          ? {
+              ...i,
+              name: itemName,
+              description: itemDescription,
+              price: Number(itemPrice),
+              category_id: itemCategoryId,
+              image_url: itemImageUrl || i.image_url,
+              is_available: itemAvailable,
+            }
+          : i
       );
     } else {
       const newItem: MenuItem = {
@@ -155,37 +184,48 @@ export default function ManualMenuManagementPage() {
           'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
         is_available: itemAvailable,
       };
-      setItems((prev) => [...prev, newItem]);
+      updatedItems = [...items, newItem];
     }
 
+    setItems(updatedItems);
+    persistMenu(categories, updatedItems);
     setIsItemModalOpen(false);
   };
 
   const handleDeleteItem = (id: string) => {
     if (confirm('Delete this menu item?')) {
-      setItems((prev) => prev.filter((i) => i.id !== id));
+      const updatedItems = items.filter((i) => i.id !== id);
+      setItems(updatedItems);
+      persistMenu(categories, updatedItems);
     }
   };
 
   const toggleAvailability = (id: string) => {
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, is_available: !i.is_available } : i))
+    const updatedItems = items.map((i) =>
+      i.id === id ? { ...i, is_available: !i.is_available } : i
     );
+    setItems(updatedItems);
+    persistMenu(categories, updatedItems);
   };
 
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
     const newCat: Category = { id: `cat-${Date.now()}`, name: newCatName.trim() };
-    setCategories((prev) => [...prev, newCat]);
+    const updatedCats = [...categories, newCat];
+    setCategories(updatedCats);
+    persistMenu(updatedCats, items);
     setNewCatName('');
     setIsCatModalOpen(false);
   };
 
   const handleDeleteCategory = (catId: string) => {
     if (confirm('Delete this category and all its items?')) {
-      setCategories((prev) => prev.filter((c) => c.id !== catId));
-      setItems((prev) => prev.filter((i) => i.category_id !== catId));
+      const updatedCats = categories.filter((c) => c.id !== catId);
+      const updatedItems = items.filter((i) => i.category_id !== catId);
+      setCategories(updatedCats);
+      setItems(updatedItems);
+      persistMenu(updatedCats, updatedItems);
     }
   };
 
@@ -196,7 +236,7 @@ export default function ManualMenuManagementPage() {
           <div>
             <h1 className="text-2xl font-bold">Manual Menu Management</h1>
             <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Add, edit, or remove menu items and categories directly without AI.
+              Add, edit, or remove menu items and categories directly without AI. Live customer menu updates instantly.
             </p>
           </div>
 
@@ -225,7 +265,7 @@ export default function ManualMenuManagementPage() {
             return (
               <section key={cat.id} className={`p-6 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
                 <div className="flex items-center justify-between border-b pb-4 mb-4 border-slate-800">
-                  <h2 className="text-lg font-bold text-orange-500 uppercase tracking-wider">{cat.name}</h2>
+                  <h2 className="text-lg font-bold text-orange-500 uppercase tracking-wider">{cat.name} ({catItems.length})</h2>
                   <button
                     onClick={() => handleDeleteCategory(cat.id)}
                     className="text-slate-500 hover:text-red-400 text-xs flex items-center gap-1"
@@ -235,56 +275,60 @@ export default function ManualMenuManagementPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {catItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`p-4 rounded-xl border flex items-start gap-4 ${
-                        isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-                      }`}
-                    >
-                      <img
-                        src={item.image_url}
-                        alt={item.name}
-                        className="w-16 h-16 rounded-lg object-cover border border-slate-700/50"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <h3 className={`font-bold text-sm truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.name}</h3>
-                          <span className="font-extrabold text-orange-600 dark:text-orange-500 text-sm">₹{item.price}</span>
-                        </div>
-                        <p className={`text-xs line-clamp-1 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{item.description}</p>
+                  {catItems.length === 0 ? (
+                    <div className="col-span-full py-4 text-center text-xs text-slate-500">No items in this category. Click "Add Item" to add one.</div>
+                  ) : (
+                    catItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`p-4 rounded-xl border flex items-start gap-4 ${
+                          isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          className="w-16 h-16 rounded-lg object-cover border border-slate-700/50"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className={`font-bold text-sm truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.name}</h3>
+                            <span className="font-extrabold text-orange-600 dark:text-orange-500 text-sm">₹{item.price}</span>
+                          </div>
+                          <p className={`text-xs line-clamp-1 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{item.description}</p>
 
-                        <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-slate-800">
-                          <button
-                            onClick={() => toggleAvailability(item.id)}
-                            className={`text-xs font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
-                              item.is_available
-                                ? 'bg-emerald-500/20 text-emerald-400'
-                                : 'bg-red-500/20 text-red-400'
-                            }`}
-                          >
-                            {item.is_available ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                            {item.is_available ? 'Available' : 'Unavailable'}
-                          </button>
+                          <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-slate-800">
+                            <button
+                              onClick={() => toggleAvailability(item.id)}
+                              className={`text-xs font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                                item.is_available
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : 'bg-red-500/20 text-red-400'
+                              }`}
+                            >
+                              {item.is_available ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                              {item.is_available ? 'Available' : 'Unavailable'}
+                            </button>
 
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => openEditItemModal(item)}
-                              className="text-slate-400 hover:text-white p-1"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteItem(item.id)}
-                              className="text-slate-500 hover:text-red-400 p-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => openEditItemModal(item)}
+                                className="text-slate-400 hover:text-white p-1"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(item.id)}
+                                className="text-slate-500 hover:text-red-400 p-1"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </section>
             );
@@ -352,7 +396,6 @@ export default function ManualMenuManagementPage() {
                   />
                 </div>
 
-                {/* Cloudinary Image Upload */}
                 <div>
                   <label className="block text-xs font-semibold mb-1">Food Image</label>
                   <div className="flex items-center gap-3">
